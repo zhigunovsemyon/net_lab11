@@ -32,6 +32,12 @@ constexpr in_port_t PORT = 8789;
 
 int communication_cycle(fd_t fd);
 
+// Функция для отправки HTTP-ответа
+ssize_t send_response(int client_socket,
+		      char const * status,
+		      char const * content_type,
+		      char const * content);
+
 int main()
 {
 	// Структура с адресом и портом сервера
@@ -62,10 +68,30 @@ int main()
 	return 0;
 }
 
+// Функция для отправки HTTP-ответа
+ssize_t send_response(int client_socket,
+		      char const * status,
+		      char const * content_type,
+		      char const * content)
+{
+	constexpr size_t BUFFER_SIZE = 640;
+	char response[BUFFER_SIZE];
+
+	snprintf(response, sizeof(response),
+		 "HTTP/1.0 %s\r\n"
+		 "Content-Type: %s\r\n"
+		 "Content-Length: %zu\r\n"
+		 "\r\n"
+		 "%s",
+		 status, content_type, strlen(content), content);
+
+	return write(client_socket, response, strlen(response));
+}
+
 static inline ssize_t send_bad_request(fd_t fd)
 {
-	char const * NOT_FOUND_RESPONSE = "No such entry!\n";
-	return send(fd, NOT_FOUND_RESPONSE, strlen(NOT_FOUND_RESPONSE), 0);
+	return send_response(fd, "400 Bad Request", "text/html",
+			     "<p>400 Bad Request</p>");
 }
 
 ssize_t handle_request(fd_t fd, [[maybe_unused]] char const * request)
