@@ -35,7 +35,7 @@ constexpr in_port_t PORT = 8789;
 int communication_cycle(fd_t fd, char const * valid_ip);
 
 // Функция для отправки HTTP-ответа
-ssize_t send_response(int client_socket,
+ssize_t send_response(fd_t client_socket,
 		      char const * status,
 		      char const * content_type,
 		      char const * content);
@@ -85,7 +85,7 @@ int main()
 }
 
 // Функция для отправки HTTP-ответа
-ssize_t send_response(int client_socket,
+ssize_t send_response(fd_t client_socket,
 		      char const * status,
 		      char const * content_type,
 		      char const * content)
@@ -106,9 +106,10 @@ ssize_t send_response(int client_socket,
 
 static inline ssize_t send_not_found(fd_t fd)
 {
-		return send_response(fd, "404 Not Found",
-				     "text/html", "<h1>404 Not Found</h1>");
+	return send_response(fd, "404 Not Found", "text/html",
+			     "<h1>404 Not Found</h1>");
 }
+
 static inline ssize_t send_not_implemented(fd_t fd)
 {
 	return send_response(fd, "501 Not Implemented", "text/html",
@@ -118,7 +119,7 @@ static inline ssize_t send_not_implemented(fd_t fd)
 static inline ssize_t send_bad_request(fd_t fd)
 {
 	return send_response(fd, "400 Bad Request", "text/html",
-			     "<p>400 Bad Request</p>");
+			     "<h1>400 Bad Request</h1>");
 }
 
 size_t get_file_size(fd_t fd)
@@ -131,11 +132,11 @@ size_t get_file_size(fd_t fd)
 }
 
 // Функция для отправки файла
-ssize_t send_file(int client_socket, char const * path)
+ssize_t send_file(fd_t client_socket, char const * path)
 {
 	++path; // Смещение символа /
 
-	int fd = open(path, O_RDONLY);
+	fd_t fd = open(path, O_RDONLY);
 	if (fd == -1) {
 		return send_not_found(client_socket);
 	}
@@ -159,7 +160,7 @@ ssize_t send_file(int client_socket, char const * path)
 	char buffer[BUFFER_SIZE];
 	ssize_t bytes_read;
 	while ((bytes_read = read(fd, buffer, sizeof(buffer))) > 0) {
-		if(send(client_socket, buffer, (size_t)bytes_read, 0) < 0){
+		if (send(client_socket, buffer, (size_t)bytes_read, 0) < 0) {
 			close(fd);
 			return -1;
 		}
