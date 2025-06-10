@@ -82,8 +82,8 @@ int communication_cycle(fd_t serv_sock)
 	char buf[buflen + 1];
 	buf[buflen] = '\0';
 
-	fd_t client_sock;
 	do {
+		fd_t client_sock;
 		// Структура с адресом и портом клиента
 		struct sockaddr_in client_addr = {};
 		socklen_t client_addr_len = sizeof(client_addr);
@@ -91,18 +91,18 @@ int communication_cycle(fd_t serv_sock)
 		client_sock = accept(serv_sock, (struct sockaddr *)&client_addr,
 				     &client_addr_len);
 		if (client_sock < 0) {
-			perror("Accept failed");
-			close(serv_sock);
-			return 1;
+			return -1;
 		}
 		print_sockaddr_in_info(&client_addr);
 
 		ssize_t recv_ret = recv(client_sock, buf, buflen, 0);
-		if (recv_ret == 0) {
-			break;
-		} else if (recv_ret < 0)
+		if (recv_ret < 0) {
+			close(client_sock);
 			return -1;
-
+		} else if (recv_ret == 0) { // Пустой запрос
+			close(client_sock);
+			return 0;
+		}
 		// else if (recv_ret > 0)
 		buf[recv_ret] = '\0';
 
@@ -112,15 +112,11 @@ int communication_cycle(fd_t serv_sock)
 			*endl = '\0';
 
 		ssize_t sent_bytes = handle_request(client_sock, buf);
-		if (sent_bytes > 0)
-			continue;
-		else if (sent_bytes == 0)
-			break;
-		// if error
-		close(client_sock);
-		return -1;
+		if (sent_bytes < 0) {
+			close(client_sock);
+			return -1;
+		} else
+			close(client_sock);
 
 	} while (true);
-	close(client_sock);
-	return 0;
 }
