@@ -34,10 +34,6 @@ int communication_cycle(fd_t fd);
 
 int main()
 {
-	// Структура с адресом и портом клиента
-	struct sockaddr_in client_addr = {};
-	socklen_t client_addr_len = sizeof(client_addr);
-
 	// Структура с адресом и портом сервера
 	struct sockaddr_in server_addr = {};
 	server_addr.sin_family = AF_INET;
@@ -51,29 +47,18 @@ int main()
 		perror("Failed to create binded socket");
 		return -1;
 	}
-
 	printf("Ожидание соединения на порт %hu\n", PORT);
-	fd_t client_sock = accept(serv_sock, (struct sockaddr *)&client_addr,
-				  &client_addr_len);
-	if (client_sock < 0) {
-		perror("Accept failed");
-		close(serv_sock);
-		return 1;
-	}
-	print_sockaddr_in_info(&client_addr);
 
-	int communication_cycle_bad = communication_cycle(client_sock);
+	int communication_cycle_bad = communication_cycle(serv_sock);
 	if (communication_cycle_bad < 0) {
 		perror("Recv failed");
 		close(serv_sock);
-		close(client_sock);
 		return 1;
 	}
 
 	// Штатное завершение работы
 	puts("Клиент прервал соединение");
 	close(serv_sock);
-	close(client_sock);
 	return 0;
 }
 
@@ -91,14 +76,28 @@ ssize_t handle_request(fd_t fd, [[maybe_unused]] char const * request)
 	return send_bad_request(fd);
 }
 
-int communication_cycle(fd_t fd)
+int communication_cycle(fd_t serv_sock)
 {
 	constexpr size_t buflen = 64;
 	char buf[buflen + 1];
 	buf[buflen] = '\0';
 
+	fd_t client_sock;
 	do {
-		ssize_t recv_ret = recv(fd, buf, buflen, 0);
+		// Структура с адресом и портом клиента
+		struct sockaddr_in client_addr = {};
+		socklen_t client_addr_len = sizeof(client_addr);
+
+		client_sock = accept(serv_sock, (struct sockaddr *)&client_addr,
+				     &client_addr_len);
+		if (client_sock < 0) {
+			perror("Accept failed");
+			close(serv_sock);
+			return 1;
+		}
+		print_sockaddr_in_info(&client_addr);
+
+		ssize_t recv_ret = recv(client_sock, buf, buflen, 0);
 		if (recv_ret == 0) {
 			break;
 		} else if (recv_ret < 0)
@@ -112,14 +111,16 @@ int communication_cycle(fd_t fd)
 		if (endl)
 			*endl = '\0';
 
-		ssize_t sent_bytes = handle_request(fd, buf);
+		ssize_t sent_bytes = handle_request(client_sock, buf);
 		if (sent_bytes > 0)
 			continue;
 		else if (sent_bytes == 0)
 			break;
 		// if error
+		close(client_sock);
 		return -1;
 
 	} while (true);
+	close(client_sock);
 	return 0;
 }
