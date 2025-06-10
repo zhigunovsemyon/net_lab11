@@ -1,4 +1,5 @@
 #include "socks.h"
+#include <arpa/inet.h>
 #include <assert.h>
 #include <malloc.h>
 #include <netinet/in.h>
@@ -30,7 +31,7 @@
 constexpr in_port_t PORT = 8789;
 [[maybe_unused]] constexpr uint32_t LOCALHOST = (127 << 24) + 1;
 
-int communication_cycle(fd_t fd);
+int communication_cycle(fd_t fd, char const * valid_ip);
 
 // Функция для отправки HTTP-ответа
 ssize_t send_response(int client_socket,
@@ -53,9 +54,17 @@ int main()
 		perror("Failed to create binded socket");
 		return -1;
 	}
+
+	// Чтение корректного IP-адреса
+	char valid_ip[19];
+	printf("Введите валидный IP-адрес: ");
+	scanf("%18s", valid_ip);
+	while (getchar() != '\n')
+		;
+
 	printf("Ожидание соединения на порт %hu\n", PORT);
 
-	int communication_cycle_bad = communication_cycle(serv_sock);
+	int communication_cycle_bad = communication_cycle(serv_sock, valid_ip);
 	if (communication_cycle_bad < 0) {
 		perror("Recv failed");
 		close(serv_sock);
@@ -102,7 +111,7 @@ ssize_t handle_request(fd_t fd, [[maybe_unused]] char const * request)
 	return send_bad_request(fd);
 }
 
-int communication_cycle(fd_t serv_sock)
+int communication_cycle(fd_t serv_sock, char const * valid_ip)
 {
 	constexpr size_t buflen = 64;
 	char buf[buflen + 1];
@@ -128,9 +137,21 @@ int communication_cycle(fd_t serv_sock)
 		} else if (recv_ret == 0) { // Пустой запрос
 			close(client_sock);
 			return 0;
+			// continue;
 		}
 		// else if (recv_ret > 0)
 		buf[recv_ret] = '\0';
+
+		bool const bad_client =
+			strcmp(valid_ip, inet_ntoa(client_addr.sin_addr));
+		if (bad_client) {
+			if (send_bad_request(client_sock) < 0) {
+				close(client_sock);
+				return -1;
+			}
+			close(client_sock);
+			continue;
+		}
 
 		// Зануление переноса строки
 		char * endl = strpbrk(buf, "\r\n");
