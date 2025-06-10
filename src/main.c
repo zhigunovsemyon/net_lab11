@@ -104,6 +104,11 @@ ssize_t send_response(int client_socket,
 	return write(client_socket, response, strlen(response));
 }
 
+static inline ssize_t send_not_found(fd_t fd)
+{
+		return send_response(fd, "404 Not Found",
+				     "text/html", "<h1>404 Not Found</h1>");
+}
 static inline ssize_t send_not_implemented(fd_t fd)
 {
 	return send_response(fd, "501 Not Implemented", "text/html",
@@ -128,14 +133,11 @@ size_t get_file_size(fd_t fd)
 // Функция для отправки файла
 ssize_t send_file(int client_socket, char const * path)
 {
-	// char full_path[MAX_PATH];
-	// snprintf(full_path, sizeof(full_path), ".%s",
-	// 	 path); // Предполагаем, что файлы лежат в текущей директории
+	++path; // Смещение символа /
 
 	int fd = open(path, O_RDONLY);
 	if (fd == -1) {
-		return send_response(client_socket, "404 Not Found",
-				     "text/html", "<h1>404 Not Found</h1>");
+		return send_not_found(client_socket);
 	}
 
 	constexpr size_t BUFFER_SIZE = 100;
@@ -157,7 +159,7 @@ ssize_t send_file(int client_socket, char const * path)
 	char buffer[BUFFER_SIZE];
 	ssize_t bytes_read;
 	while ((bytes_read = read(fd, buffer, sizeof(buffer))) > 0) {
-		if(write(client_socket, buffer, (size_t)bytes_read)){
+		if(send(client_socket, buffer, (size_t)bytes_read, 0) < 0){
 			close(fd);
 			return -1;
 		}
@@ -169,6 +171,7 @@ ssize_t send_file(int client_socket, char const * path)
 
 ssize_t handle_request(fd_t fd, char const * request)
 {
+	printf("%s\n", request);
 	constexpr size_t PATH_MAXLEN = 100;
 	char path[PATH_MAXLEN];
 	if (strncmp(request, "GET ", 4) != 0) {
@@ -178,19 +181,17 @@ ssize_t handle_request(fd_t fd, char const * request)
 	// Извлекаем путь
 	char * path_start = strchr(request, ' ') + 1;
 	char * path_end = strchr(path_start, ' ');
-	if (!path_end || strncmp(path_end, " HTTP/1.0", 9) != 0) {
+	if (!path_end || strncmp(path_end, " HTTP/1.1", 9) != 0) {
 		return send_not_implemented(fd);
 	}
 
 	ssize_t path_len = path_end - path_start;
 	assert(path_len >= 0);
 	if ((size_t)path_len > PATH_MAXLEN)
-		return send_not_implemented(fd);
+		return send_not_found(fd);
 
 	strncpy(path, path_start, (size_t)path_len);
 	path[path_len] = '\0';
-	// constexpr size_t sendbuf_size = 40;
-	// char sendbuf[sendbuf_size + 1] = {};
 
 	return send_file(fd, path);
 }
