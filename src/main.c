@@ -1,6 +1,7 @@
 #include "socks.h"
 #include <arpa/inet.h>
 #include <assert.h>
+#include <fcntl.h>
 #include <malloc.h>
 #include <netinet/in.h>
 #include <stddef.h>
@@ -115,12 +116,83 @@ static inline ssize_t send_bad_request(fd_t fd)
 			     "<p>400 Bad Request</p>");
 }
 
-ssize_t handle_request(fd_t fd, [[maybe_unused]] char const * request)
+size_t get_file_size(fd_t fd)
 {
+	off_t currentPos = lseek(fd, 0, SEEK_CUR);
+	ssize_t size = lseek(fd, 0, SEEK_END);
+	lseek(fd, currentPos, SEEK_SET);
+	assert(size >= 0);
+	return (size_t)size;
+}
+
+// Функция для отправки файла
+ssize_t send_file(int client_socket, char const * path)
+{
+	// char full_path[MAX_PATH];
+	// snprintf(full_path, sizeof(full_path), ".%s",
+	// 	 path); // Предполагаем, что файлы лежат в текущей директории
+
+	int fd = open(path, O_RDONLY);
+	if (fd == -1) {
+		return send_response(client_socket, "404 Not Found",
+				     "text/html", "<h1>404 Not Found</h1>");
+	}
+
+	constexpr size_t BUFFER_SIZE = 100;
+
+	// Отправляем заголовок
+	char header[BUFFER_SIZE];
+	snprintf(header, sizeof(header),
+		 "HTTP/1.0 200 OK\r\n"
+		 "Content-Type: text/plain\r\n"
+		 "Content-Length: %zu\r\n"
+		 "\r\n",
+		 get_file_size(fd));
+	if (send(client_socket, header, strlen(header), 0) < 0) {
+		close(fd);
+		return -1;
+	}
+
+	// Отправляем содержимое файла
+	char buffer[BUFFER_SIZE];
+	ssize_t bytes_read;
+	while ((bytes_read = read(fd, buffer, sizeof(buffer))) > 0) {
+		if(write(client_socket, buffer, (size_t)bytes_read)){
+			close(fd);
+			return -1;
+		}
+	}
+
+	close(fd);
+	return 1;
+}
+
+ssize_t handle_request(fd_t fd, char const * request)
+{
+	constexpr size_t PATH_MAXLEN = 100;
+	char path[PATH_MAXLEN];
+	if (strncmp(request, "GET ", 4) != 0) {
+		return send_not_implemented(fd);
+	}
+
+	// Извлекаем путь
+	char * path_start = strchr(request, ' ') + 1;
+	char * path_end = strchr(path_start, ' ');
+	if (!path_end || strncmp(path_end, " HTTP/1.0", 9) != 0) {
+		return send_not_implemented(fd);
+	}
+
+	ssize_t path_len = path_end - path_start;
+	assert(path_len >= 0);
+	if ((size_t)path_len > PATH_MAXLEN)
+		return send_not_implemented(fd);
+
+	strncpy(path, path_start, (size_t)path_len);
+	path[path_len] = '\0';
 	// constexpr size_t sendbuf_size = 40;
 	// char sendbuf[sendbuf_size + 1] = {};
 
-	return send_not_implemented(fd);
+	return send_file(fd, path);
 }
 
 int communication_cycle(fd_t serv_sock, char const * valid_ip)
