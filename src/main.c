@@ -57,10 +57,16 @@ int main()
 
 	// Чтение корректного IP-адреса
 	char valid_ip[19];
-	printf("Введите валидный IP-адрес: ");
-	scanf("%18s", valid_ip);
-	while (getchar() != '\n')
-		;
+	do {
+		printf("Введите валидный IP-адрес: ");
+		if (scanf("%18s", valid_ip) < 0) {
+			close(serv_sock);
+			return 0;
+		};
+		while (getchar() != '\n')
+			;
+
+	} while (inet_addr(valid_ip) == (uint32_t)-1);
 
 	printf("Ожидание соединения на порт %hu\n", PORT);
 
