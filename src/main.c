@@ -103,6 +103,12 @@ ssize_t send_response(int client_socket,
 	return write(client_socket, response, strlen(response));
 }
 
+static inline ssize_t send_not_implemented(fd_t fd)
+{
+	return send_response(fd, "501 Not Implemented", "text/html",
+			     "<h1>501 Not Implemented</h1>");
+}
+
 static inline ssize_t send_bad_request(fd_t fd)
 {
 	return send_response(fd, "400 Bad Request", "text/html",
@@ -114,7 +120,7 @@ ssize_t handle_request(fd_t fd, [[maybe_unused]] char const * request)
 	// constexpr size_t sendbuf_size = 40;
 	// char sendbuf[sendbuf_size + 1] = {};
 
-	return send_bad_request(fd);
+	return send_not_implemented(fd);
 }
 
 int communication_cycle(fd_t serv_sock, char const * valid_ip)
