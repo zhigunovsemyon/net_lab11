@@ -75,7 +75,7 @@ int main()
 
 int communication_cycle(fd_t serv_sock, char const * valid_ip)
 {
-	constexpr size_t buflen = 64;
+	constexpr size_t buflen = 200;
 	char buf[buflen + 1];
 	buf[buflen] = '\0';
 
@@ -114,11 +114,6 @@ int communication_cycle(fd_t serv_sock, char const * valid_ip)
 			close(client_sock);
 			continue;
 		}
-
-		// Зануление переноса строки
-		char * endl = strpbrk(buf, "\r\n");
-		if (endl)
-			*endl = '\0';
 
 		ssize_t sent_bytes = handle_request(client_sock, buf);
 		if (sent_bytes < 0) {
