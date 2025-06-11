@@ -12,7 +12,7 @@ ssize_t send_response(fd_t client_socket,
 		      char const * content_type,
 		      char const * content)
 {
-	constexpr size_t BUFFER_SIZE = 640;
+	constexpr size_t BUFFER_SIZE = 120;
 	char response[BUFFER_SIZE];
 
 	snprintf(response, sizeof(response),
@@ -23,7 +23,7 @@ ssize_t send_response(fd_t client_socket,
 		 "%s",
 		 status, content_type, strlen(content), content);
 
-	return write(client_socket, response, strlen(response));
+	return send(client_socket, response, strlen(response),0);
 }
 
 static inline ssize_t send_not_found(fd_t fd)
@@ -104,7 +104,7 @@ ssize_t handle_request(fd_t fd, char const * request)
 	// Извлекаем путь
 	char * path_start = strchr(request, ' ') + 1;
 	char * path_end = strchr(path_start, ' ');
-	if (!path_end || strncmp(path_end, " HTTP/1.1", 9) != 0) {
+	if (!path_end || strncmp(path_end, " HTTP/1.", 8) != 0) {
 		return send_not_implemented(fd);
 	}
 
